@@ -52,7 +52,8 @@ object APGTEChapter {
 
     val body = (article >> element(".entry-content")).asInstanceOf[JsoupElement]
 
-    Chapter(title, extractContent(body))
+    // Some of the titles seem to have nonbreaking spaces instead of regular ones.
+    Chapter(title.replace("\u00a0", " "), extractContent(body))
   }
 
   def fromUrl(url: String): Chapter = {
