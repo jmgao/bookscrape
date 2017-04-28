@@ -1,8 +1,11 @@
 package us.insolit.bookscrape.apgte
 
 import java.net.URI
+import java.util.concurrent.Executors
 
 import scala.collection.JavaConverters._
+import scala.concurrent.{Await, ExecutionContext, Future}
+import scala.concurrent.duration.Duration
 
 import org.jsoup.nodes.{Document, Element, Node, TextNode}
 
@@ -105,20 +108,33 @@ object APGTEScraper extends App {
     "Book 3" -> "A Practical Guide to Evil: Book 3"
   )
 
-  val bookUrls = APGTETOC.fetch()
-  for (BookUrls(bookName, chapterUrls) <- bookUrls) {
-    val name = bookTitleMap.getOrElse(bookName, bookName)
-    var chapters = Vector[Chapter]()
-    for (ChapterUrl(chapterName, chapterUrl) <- chapterUrls) {
-      // TODO: Switch to futures, parallelize.
-      val chapter = APGTEChapter.fromUrl(chapterUrl)
-      if (chapterName != chapter.title) {
-        println("Different chapter names: '%s' vs '%s'".format(chapterName, chapter.title))
-        chapter.title = chapterName
+  {
+    val executor = Executors.newFixedThreadPool(32)
+    implicit val ec = ExecutionContext.fromExecutor(executor)
+
+    val bookUrls = APGTETOC.fetch()
+    for (BookUrls(bookName, chapterUrls) <- bookUrls) {
+      val name = bookTitleMap.getOrElse(bookName, bookName)
+      val chapters = chapterUrls map {
+        case ChapterUrl(chapterName, chapterUrl) => {
+          Future {
+            val chapter = APGTEChapter.fromUrl(chapterUrl)
+            if (chapterName != chapter.title) {
+              println("Different chapter names: '%s' vs '%s'".format(chapterName, chapter.title))
+              chapter.title = chapterName
+            }
+            chapter
+          }
+        }
       }
-      chapters = chapters :+ chapter
+
+      Book(
+        name,
+        Author("Verburg", "David"),
+        Await.result(Future.sequence(chapters), Duration.Inf)
+      ).toEpub
     }
 
-    Book(name, Author("Verburg", "David"), chapters).toEpub
+    executor.shutdown()
   }
 }
