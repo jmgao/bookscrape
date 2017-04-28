@@ -8,6 +8,7 @@ lazy val root = (project in file(".")).
       version      := "0.1.0-SNAPSHOT"
     )),
     name := "bookscrape",
+    scalacOptions ++= Seq("-unchecked", "-deprecation"),
     libraryDependencies += scalaTest % Test,
     libraryDependencies += "org.scalaj" %% "scalaj-http" % "2.3.0",
     libraryDependencies += "net.ruippeixotog" %% "scala-scraper" % "1.2.0"
