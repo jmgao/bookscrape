@@ -2,7 +2,9 @@ package us.insolit.bookscrape.apgte
 
 import java.net.URI
 
-import org.jsoup.nodes.{Document, Element}
+import scala.collection.JavaConverters._
+
+import org.jsoup.nodes.{Document, Element, Node, TextNode}
 
 import net.ruippeixotog.scalascraper
 import net.ruippeixotog.scalascraper.browser.JsoupBrowser
@@ -16,13 +18,41 @@ import scalaj.http._
 import us.insolit.bookscrape._
 
 object APGTEChapter {
+  def extractContent(entryContent: JsoupElement): Vector[Node] = {
+    // Iterate until we hit a <style> tag.
+    var lines = Vector[Node]()
+    for (node <- entryContent.underlying.childNodes.asScala) {
+      node match {
+        case textNode: TextNode => {
+          lines = lines :+ textNode
+        }
+
+        case element: Element => {
+          if (element.tagName.equalsIgnoreCase("style")) {
+            return lines
+          }
+
+          lines = lines :+ element
+        }
+
+        case unknown => {
+          throw new RuntimeException(
+            "Unknown node of type '%s': %s".format(unknown.getClass().getSimpleName(), unknown)
+          )
+        }
+      }
+    }
+
+    lines
+  }
+
   def parse(doc: JsoupDocument): Chapter = {
     val article = doc >> element(".entry-wrapper")
     val title = article >> text(".entry-title")
 
-    // TODO: Make sure there aren't any tags in between <p> tags.
-    val body = article >> element(".entry-content") >> elements("p")
-    Chapter(title, body.toList.asInstanceOf[List[JsoupElement]])
+    val body = (article >> element(".entry-content")).asInstanceOf[JsoupElement]
+
+    Chapter(title, extractContent(body))
   }
 
   def fromUrl(url: String): Chapter = {
